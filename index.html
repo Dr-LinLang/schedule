@@ -1,0 +1,1214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日程管理</title>
+<style>
+/* ========== 基础重置与变量 ========== */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #f0f2f5;
+  --card-bg: #ffffff;
+  --primary: #5b6abf;
+  --primary-light: #eef0fb;
+  --text: #2c3e50;
+  --text-secondary: #7f8c9b;
+  --border: #e8ecf1;
+  --shadow: 0 2px 12px rgba(0,0,0,0.06);
+  --shadow-lg: 0 8px 32px rgba(0,0,0,0.10);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --today-bg: #5b6abf;
+  --today-text: #fff;
+  --dot-color: #5b6abf;
+}
+
+/* 标签颜色 */
+.tag-work     { --tag-color: #5b6abf; --tag-bg: #eef0fb; }
+.tag-personal { --tag-color: #e88b4a; --tag-bg: #fef4ed; }
+.tag-important{ --tag-color: #e0555a; --tag-bg: #fdecec; }
+.tag-health   { --tag-color: #43a87a; --tag-bg: #edf7f2; }
+.tag-study    { --tag-color: #8e6fc4; --tag-bg: #f3effa; }
+.tag-other    { --tag-color: #6c8b9e; --tag-bg: #eef3f6; }
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 20px;
+}
+
+/* ========== 主容器 ========== */
+.app-container {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  gap: 20px;
+  animation: fadeInUp 0.4s ease;
+}
+
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ========== 左侧日历面板 ========== */
+.calendar-panel {
+  flex: 0 0 380px;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.calendar-header h2 {
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 140px;
+  text-align: center;
+}
+
+.nav-btn, .today-btn {
+  width: 34px; height: 34px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  cursor: pointer;
+  font-size: 1rem;
+  color: var(--text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+}
+.nav-btn:hover, .today-btn:hover {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+.today-btn {
+  width: auto;
+  padding: 0 14px;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+/* 星期行 */
+.weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  text-align: center;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-bottom: 4px;
+}
+.weekdays .weekend { color: #e0555a; }
+
+/* 日期网格 */
+.days-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 4px;
+}
+
+.day-cell {
+  aspect-ratio: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.88rem;
+  position: relative;
+  transition: var(--transition);
+  color: var(--text);
+}
+.day-cell:hover {
+  background: var(--primary-light);
+}
+.day-cell.other-month {
+  color: #cbd0d8;
+  pointer-events: none;
+}
+.day-cell.today {
+  background: var(--today-bg);
+  color: var(--today-text);
+  font-weight: 700;
+}
+.day-cell.today:hover {
+  background: #4a59a8;
+}
+.day-cell.selected {
+  background: var(--primary-light);
+  color: var(--primary);
+  font-weight: 600;
+  box-shadow: inset 0 0 0 2px var(--primary);
+}
+.day-cell.today.selected {
+  background: var(--today-bg);
+  color: var(--today-text);
+  box-shadow: inset 0 0 0 2px #fff;
+}
+
+/* 日程小圆点 */
+.dot-indicator {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: var(--dot-color);
+  position: absolute;
+  bottom: 5px;
+  left: 50%;
+  transform: translateX(-50%);
+  transition: var(--transition);
+}
+.day-cell.today .dot-indicator {
+  background: #fff;
+}
+
+/* ========== 右侧日程面板 ========== */
+.schedule-panel {
+  flex: 1;
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 480px;
+}
+
+.schedule-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.schedule-panel-header h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.schedule-panel-header .date-badge {
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  background: var(--bg);
+  padding: 4px 12px;
+  border-radius: 20px;
+}
+
+.add-btn {
+  padding: 8px 18px;
+  background: var(--primary);
+  color: #fff;
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: 0.88rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.add-btn:hover { background: #4a59a8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(91,106,191,0.3); }
+
+/* 导入导出工具栏 */
+.toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+.tool-btn {
+  padding: 7px 14px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--card-bg);
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.82rem;
+  font-weight: 500;
+  transition: var(--transition);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+}
+.tool-btn:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: var(--primary-light);
+}
+.tool-btn.btn-danger:hover {
+  border-color: #e0555a;
+  color: #e0555a;
+  background: #fdecec;
+}
+
+/* Toast 提示 */
+.toast {
+  position: fixed;
+  bottom: 32px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c3e50;
+  color: #fff;
+  padding: 10px 24px;
+  border-radius: 20px;
+  font-size: 0.88rem;
+  z-index: 300;
+  animation: toastIn 0.3s ease, toastOut 0.3s ease 1.8s forwards;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+}
+.toast.error { background: #e0555a; }
+@keyframes toastIn  { from { opacity: 0; transform: translateX(-50%) translateY(12px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+@keyframes toastOut { from { opacity: 1; } to { opacity: 0; } }
+
+/* 日程列表 */
+.schedule-list {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  max-height: 420px;
+  padding-right: 4px;
+}
+.schedule-list::-webkit-scrollbar { width: 5px; }
+.schedule-list::-webkit-scrollbar-thumb { background: #d0d5dd; border-radius: 10px; }
+
+.empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #c0c8d4;
+  font-size: 0.9rem;
+  gap: 10px;
+  animation: fadeIn 0.3s ease;
+}
+.empty-state .icon { font-size: 2.5rem; opacity: 0.5; }
+
+/* 单条日程卡片 */
+.schedule-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: var(--radius-sm);
+  background: #fafbfc;
+  border: 1px solid var(--border);
+  cursor: pointer;
+  transition: var(--transition);
+  animation: slideIn 0.25s ease;
+  position: relative;
+}
+.schedule-item:hover {
+  box-shadow: var(--shadow);
+  transform: translateX(3px);
+  border-color: #d0d5dd;
+}
+
+/* 左侧色条 */
+.tag-strip {
+  width: 4px;
+  height: 42px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.schedule-item .item-body {
+  flex: 1;
+  min-width: 0;
+}
+.schedule-item .item-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.schedule-item .item-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+  color: var(--text-secondary);
+  margin-top: 2px;
+}
+.schedule-item .item-time {
+  font-weight: 500;
+  color: var(--primary);
+}
+.schedule-item .item-note {
+  font-size: 0.78rem;
+  color: #a0aab4;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px;
+}
+
+/* 删除按钮 */
+.delete-btn {
+  width: 30px; height: 30px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: #c0c8d4;
+  cursor: pointer;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: var(--transition);
+  flex-shrink: 0;
+}
+.delete-btn:hover { background: #fdecec; color: #e0555a; }
+
+/* ========== 模态框 ========== */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal {
+  background: var(--card-bg);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 28px 24px 24px;
+  width: 420px;
+  max-width: 92vw;
+  animation: fadeInUp 0.3s ease;
+}
+
+.modal h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 18px;
+}
+
+.modal .form-group {
+  margin-bottom: 16px;
+}
+
+.modal label {
+  display: block;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-bottom: 6px;
+}
+
+.modal input[type="text"],
+.modal input[type="time"],
+.modal textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1.5px solid var(--border);
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--text);
+  background: #fafbfc;
+  transition: var(--transition);
+  outline: none;
+}
+.modal input:focus,
+.modal textarea:focus {
+  border-color: var(--primary);
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(91,106,191,0.1);
+}
+
+.modal textarea { resize: vertical; min-height: 70px; }
+
+/* 时间行 */
+.time-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.time-row input { flex: 1; }
+.time-row span { color: var(--text-secondary); font-size: 0.85rem; }
+
+/* 标签颜色选择器 */
+.tag-picker {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.tag-option {
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 3px solid transparent;
+  transition: var(--transition);
+  position: relative;
+}
+.tag-option:hover { transform: scale(1.12); }
+.tag-option.selected {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px rgba(0,0,0,0.08);
+}
+
+/* 标签颜色 */
+.tag-option[data-tag="work"]      { background: #5b6abf; }
+.tag-option[data-tag="personal"]  { background: #e88b4a; }
+.tag-option[data-tag="important"] { background: #e0555a; }
+.tag-option[data-tag="health"]    { background: #43a87a; }
+.tag-option[data-tag="study"]     { background: #8e6fc4; }
+.tag-option[data-tag="other"]     { background: #6c8b9e; }
+
+.tag-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  padding: 2px 10px;
+  border-radius: 12px;
+  background: var(--tag-bg, #eef3f6);
+  color: var(--tag-color, #6c8b9e);
+}
+
+/* 模态框按钮 */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+.btn-cancel {
+  padding: 9px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: #fff;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: var(--transition);
+}
+.btn-cancel:hover { background: #f5f6f8; }
+
+.btn-save {
+  padding: 9px 24px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: var(--primary);
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: var(--transition);
+}
+.btn-save:hover { background: #4a59a8; }
+
+.btn-delete-confirm {
+  padding: 9px 20px;
+  border: none;
+  border-radius: var(--radius-sm);
+  background: #e0555a;
+  color: #fff;
+  cursor: pointer;
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: var(--transition);
+  margin-right: auto;
+}
+.btn-delete-confirm:hover { background: #c94a4f; }
+
+/* 确认删除对话框 */
+.confirm-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  animation: fadeIn 0.15s ease;
+}
+.confirm-box {
+  background: #fff;
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+  box-shadow: var(--shadow-lg);
+  animation: fadeInUp 0.25s ease;
+  max-width: 320px;
+}
+.confirm-box p { margin-bottom: 18px; font-size: 0.95rem; color: var(--text); }
+.confirm-box .confirm-actions {
+  display: flex; gap: 10px; justify-content: center;
+}
+.confirm-box button {
+  padding: 8px 22px;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  font-size: 0.88rem;
+  transition: var(--transition);
+}
+.confirm-box .btn-no  { background: #eef0f2; color: var(--text); }
+.confirm-box .btn-no:hover  { background: #dde1e6; }
+.confirm-box .btn-yes { background: #e0555a; color: #fff; }
+.confirm-box .btn-yes:hover { background: #c94a4f; }
+
+/* ========== 统计提示条 ========== */
+.stats-bar {
+  font-size: 0.78rem;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 4px 0;
+  border-top: 1px solid var(--border);
+  margin-top: auto;
+}
+
+/* ========== 响应式 ========== */
+@media (max-width: 768px) {
+  .app-container {
+    flex-direction: column;
+    max-width: 480px;
+  }
+  .calendar-panel { flex: none; }
+  .schedule-panel { min-height: 360px; }
+  .schedule-list { max-height: 300px; }
+}
+</style>
+</head>
+<body>
+
+<div class="app-container">
+  <!-- 左侧日历 -->
+  <div class="calendar-panel" id="calendarPanel">
+    <div class="calendar-header">
+      <button class="nav-btn" id="prevMonth" title="上一月">◀</button>
+      <h2 id="monthYearLabel"></h2>
+      <button class="nav-btn" id="nextMonth" title="下一月">▶</button>
+    </div>
+    <div class="weekdays">
+      <span class="weekend">日</span><span>一</span><span>二</span><span>三</span>
+      <span>四</span><span>五</span><span class="weekend">六</span>
+    </div>
+    <div class="days-grid" id="daysGrid"></div>
+    <button class="today-btn" id="goToday" style="width:100%;margin-top:4px;">📍 回到今天</button>
+  </div>
+
+  <!-- 右侧日程 -->
+  <div class="schedule-panel" id="schedulePanel">
+    <div class="schedule-panel-header">
+      <h3>📋 日程列表</h3>
+      <span class="date-badge" id="dateBadge"></span>
+    </div>
+    <button class="add-btn" id="addScheduleBtn">＋ 添加日程</button>
+    <div class="toolbar">
+      <button class="tool-btn" id="exportBtn">📥 导出全部</button>
+      <button class="tool-btn" id="importBtn">📤 导入</button>
+      <button class="tool-btn btn-danger" id="clearAllBtn">🗑 清除全部</button>
+      <input type="file" id="importFileInput" accept=".json" style="display:none;">
+    </div>
+    <div class="schedule-list" id="scheduleList">
+      <div class="empty-state">
+        <span class="icon">📭</span>
+        <span>暂无日程，点击上方按钮添加</span>
+      </div>
+    </div>
+    <div class="stats-bar" id="statsBar"></div>
+  </div>
+</div>
+
+<!-- 模态框（添加/编辑） -->
+<div class="modal-overlay" id="modalOverlay" style="display:none;">
+  <div class="modal" id="modal">
+    <h3 id="modalTitle">添加日程</h3>
+    <div class="form-group">
+      <label>日程标题</label>
+      <input type="text" id="inputTitle" placeholder="输入日程标题" maxlength="50">
+    </div>
+    <div class="form-group">
+      <label>时间段</label>
+      <div class="time-row">
+        <input type="time" id="inputStartTime" value="09:00">
+        <span>至</span>
+        <input type="time" id="inputEndTime" value="10:30">
+      </div>
+    </div>
+    <div class="form-group">
+      <label>备注</label>
+      <textarea id="inputNote" placeholder="可选备注…" maxlength="200"></textarea>
+    </div>
+    <div class="form-group">
+      <label>标签</label>
+      <div class="tag-picker" id="tagPicker">
+        <span class="tag-option selected" data-tag="work" title="工作"></span>
+        <span class="tag-option" data-tag="personal" title="个人"></span>
+        <span class="tag-option" data-tag="important" title="重要"></span>
+        <span class="tag-option" data-tag="health" title="健康"></span>
+        <span class="tag-option" data-tag="study" title="学习"></span>
+        <span class="tag-option" data-tag="other" title="其他"></span>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn-delete-confirm" id="btnDeleteInModal" style="display:none;">🗑 删除</button>
+      <button class="btn-cancel" id="btnCancel">取消</button>
+      <button class="btn-save" id="btnSave">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- 删除确认 -->
+<div class="confirm-overlay" id="confirmOverlay" style="display:none;">
+  <div class="confirm-box">
+    <p>确定要删除这条日程吗？</p>
+    <div class="confirm-actions">
+      <button class="btn-no" id="btnConfirmNo">取消</button>
+      <button class="btn-yes" id="btnConfirmYes">删除</button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========== 数据层 ========== */
+const STORAGE_KEY = 'scheduler_data';
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+function getSchedules(dateKey) {
+  const data = loadData();
+  return (data[dateKey] || []).slice().sort((a, b) =>
+    a.startTime.localeCompare(b.startTime)
+  );
+}
+
+function saveSchedules(dateKey, schedules) {
+  const data = loadData();
+  if (schedules.length === 0) {
+    delete data[dateKey];
+  } else {
+    data[dateKey] = schedules;
+  }
+  saveData(data);
+}
+
+function hasSchedules(dateKey) {
+  const data = loadData();
+  return !!(data[dateKey] && data[dateKey].length > 0);
+}
+
+function dateKey(year, month, day) {
+  return `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+}
+
+function parseDateKey(key) {
+  const [y, m, d] = key.split('-').map(Number);
+  return { year: y, month: m, day: d };
+}
+
+let currentYear, currentMonth, selectedDateKey;
+let editingId = null; // 当前编辑的日程 ID
+
+const today = new Date();
+const todayKey = dateKey(today.getFullYear(), today.getMonth() + 1, today.getDate());
+
+/* ========== 初始化 ========== */
+function init() {
+  currentYear = today.getFullYear();
+  currentMonth = today.getMonth() + 1;
+  selectedDateKey = todayKey;
+  renderAll();
+}
+
+/* ========== 渲染 ========== */
+function renderAll() {
+  renderCalendar();
+  renderScheduleList();
+}
+
+function renderCalendar() {
+  document.getElementById('monthYearLabel').textContent =
+    `${currentYear} 年 ${currentMonth} 月`;
+
+  const grid = document.getElementById('daysGrid');
+  grid.innerHTML = '';
+
+  // 本月第一天是星期几 (0=Sun)
+  const firstDay = new Date(currentYear, currentMonth - 1, 1).getDay();
+  // 本月天数
+  const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
+  // 上月天数
+  const daysInPrevMonth = new Date(currentYear, currentMonth - 1, 0).getDate();
+
+  // 填充上月末尾几天
+  for (let i = firstDay - 1; i >= 0; i--) {
+    const d = daysInPrevMonth - i;
+    const cell = createDayCell(d, currentMonth - 1, true);
+    grid.appendChild(cell);
+  }
+
+  // 本月所有天
+  for (let d = 1; d <= daysInMonth; d++) {
+    const cell = createDayCell(d, currentMonth, false);
+    grid.appendChild(cell);
+  }
+
+  // 补足到 6 行 × 7 列（最多42格）
+  const totalCells = firstDay + daysInMonth;
+  const remaining = totalCells <= 35 ? 35 - totalCells : 42 - totalCells;
+  for (let d = 1; d <= remaining; d++) {
+    const cell = createDayCell(d, currentMonth + 1, true);
+    grid.appendChild(cell);
+  }
+}
+
+function createDayCell(day, month, isOtherMonth) {
+  const cell = document.createElement('div');
+  cell.className = 'day-cell';
+  cell.textContent = day;
+
+  let year = currentYear;
+  let m = month;
+  if (month < 1) { m = 12; year = currentYear - 1; }
+  else if (month > 12) { m = 1; year = currentYear + 1; }
+
+  const key = dateKey(year, m, day);
+
+  if (isOtherMonth) {
+    cell.classList.add('other-month');
+  } else {
+    // 今天
+    if (key === todayKey) cell.classList.add('today');
+    // 选中
+    if (key === selectedDateKey) cell.classList.add('selected');
+    // 日程圆点
+    if (hasSchedules(key)) {
+      const dot = document.createElement('span');
+      dot.className = 'dot-indicator';
+      cell.appendChild(dot);
+    }
+    cell.addEventListener('click', () => selectDate(key));
+  }
+
+  return cell;
+}
+
+function selectDate(key) {
+  if (selectedDateKey === key) return;
+  selectedDateKey = key;
+  editingId = null;
+  const parsed = parseDateKey(key);
+  if (parsed.year !== currentYear || parsed.month !== currentMonth) {
+    currentYear = parsed.year;
+    currentMonth = parsed.month;
+  }
+  renderAll();
+}
+
+function renderScheduleList() {
+  const list = document.getElementById('scheduleList');
+  const badge = document.getElementById('dateBadge');
+  const statsBar = document.getElementById('statsBar');
+
+  badge.textContent = selectedDateKey;
+  const schedules = getSchedules(selectedDateKey);
+
+  if (schedules.length === 0) {
+    list.innerHTML = `
+      <div class="empty-state">
+        <span class="icon">📭</span>
+        <span>暂无日程，点击上方按钮添加</span>
+      </div>`;
+    statsBar.textContent = '当日无日程';
+  } else {
+    list.innerHTML = schedules.map(s => {
+      const start = s.startTime.slice(0, 5);
+      const end = s.endTime.slice(0, 5);
+      const tagName = { work:'工作', personal:'个人', important:'重要',
+        health:'健康', study:'学习', other:'其他' }[s.tag] || s.tag;
+      return `
+        <div class="schedule-item" data-id="${s.id}">
+          <div class="tag-strip" style="background:var(--tag-color, #6c8b9e);"></div>
+          <div class="item-body">
+            <div class="item-title">${escapeHtml(s.title)}</div>
+            <div class="item-meta">
+              <span class="item-time">${start} - ${end}</span>
+              <span class="tag-label tag-${s.tag}">${tagName}</span>
+              ${s.note ? `<span class="item-note">${escapeHtml(s.note)}</span>` : ''}
+            </div>
+          </div>
+          <button class="delete-btn" data-delete="${s.id}" title="删除">×</button>
+        </div>`;
+    }).join('');
+
+    statsBar.textContent = `共 ${schedules.length} 条日程`;
+
+    // 绑定点击事件：编辑
+    list.querySelectorAll('.schedule-item').forEach(item => {
+      item.addEventListener('click', (e) => {
+        // 如果点在删除按钮上则不触编辑
+        if (e.target.closest('.delete-btn')) return;
+        const id = item.dataset.id;
+        openEditModal(id);
+      });
+    });
+
+    // 绑定删除按钮
+    list.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const id = btn.dataset.delete;
+        showDeleteConfirm(id);
+      });
+    });
+  }
+}
+
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+/* ========== 模态框 ========== */
+function openAddModal() {
+  editingId = null;
+  document.getElementById('modalTitle').textContent = '添加日程';
+  document.getElementById('inputTitle').value = '';
+  document.getElementById('inputStartTime').value = '09:00';
+  document.getElementById('inputEndTime').value = '10:30';
+  document.getElementById('inputNote').value = '';
+  document.getElementById('btnDeleteInModal').style.display = 'none';
+  selectTagOption('work');
+  showModal();
+}
+
+function openEditModal(id) {
+  editingId = id;
+  const schedules = getSchedules(selectedDateKey);
+  const s = schedules.find(item => item.id === id);
+  if (!s) return;
+
+  document.getElementById('modalTitle').textContent = '编辑日程';
+  document.getElementById('inputTitle').value = s.title;
+  document.getElementById('inputStartTime').value = s.startTime;
+  document.getElementById('inputEndTime').value = s.endTime;
+  document.getElementById('inputNote').value = s.note || '';
+  document.getElementById('btnDeleteInModal').style.display = 'inline-flex';
+  selectTagOption(s.tag);
+  showModal();
+}
+
+function showModal() {
+  document.getElementById('modalOverlay').style.display = 'flex';
+  // 挂载全局键盘关闭
+  document.addEventListener('keydown', onModalKeydown);
+}
+
+function hideModal() {
+  document.getElementById('modalOverlay').style.display = 'none';
+  document.removeEventListener('keydown', onModalKeydown);
+}
+
+function onModalKeydown(e) {
+  if (e.key === 'Escape') hideModal();
+}
+
+function selectTagOption(tag) {
+  document.querySelectorAll('#tagPicker .tag-option').forEach(opt => {
+    opt.classList.toggle('selected', opt.dataset.tag === tag);
+  });
+}
+
+function getSelectedTag() {
+  const selected = document.querySelector('#tagPicker .tag-option.selected');
+  return selected ? selected.dataset.tag : 'work';
+}
+
+function saveFromModal() {
+  const title = document.getElementById('inputTitle').value.trim();
+  if (!title) { alert('请输入日程标题'); return; }
+
+  const startTime = document.getElementById('inputStartTime').value;
+  const endTime = document.getElementById('inputEndTime').value;
+  if (startTime >= endTime) { alert('结束时间必须晚于开始时间'); return; }
+
+  const note = document.getElementById('inputNote').value.trim();
+  const tag = getSelectedTag();
+
+  const schedules = getSchedules(selectedDateKey);
+
+  if (editingId) {
+    // 编辑
+    const idx = schedules.findIndex(s => s.id === editingId);
+    if (idx !== -1) {
+      schedules[idx] = { ...schedules[idx], title, startTime, endTime, note, tag };
+    }
+  } else {
+    // 新增
+    const id = generateId();
+    schedules.push({ id, title, startTime, endTime, note, tag });
+  }
+
+  saveSchedules(selectedDateKey, schedules);
+  hideModal();
+  renderAll();
+}
+
+function generateId() {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+}
+
+/* ========== 删除确认 ========== */
+let pendingDeleteId = null;
+
+function showDeleteConfirm(id) {
+  pendingDeleteId = id;
+  document.getElementById('confirmOverlay').style.display = 'flex';
+}
+
+function hideDeleteConfirm() {
+  pendingDeleteId = null;
+  document.getElementById('confirmOverlay').style.display = 'none';
+}
+
+function confirmDelete() {
+  if (!pendingDeleteId) return;
+  const schedules = getSchedules(selectedDateKey).filter(s => s.id !== pendingDeleteId);
+  saveSchedules(selectedDateKey, schedules);
+  pendingDeleteId = null;
+  document.getElementById('confirmOverlay').style.display = 'none';
+  // 如果是从模态框里的删除按钮触发的
+  if (editingId) {
+    hideModal();
+    editingId = null;
+  }
+  renderAll();
+}
+
+/* ========== 事件绑定 ========== */
+document.getElementById('prevMonth').addEventListener('click', () => {
+  currentMonth--;
+  if (currentMonth < 1) { currentMonth = 12; currentYear--; }
+  renderAll();
+});
+
+document.getElementById('nextMonth').addEventListener('click', () => {
+  currentMonth++;
+  if (currentMonth > 12) { currentMonth = 1; currentYear++; }
+  renderAll();
+});
+
+document.getElementById('goToday').addEventListener('click', () => {
+  selectDate(todayKey);
+});
+
+document.getElementById('addScheduleBtn').addEventListener('click', openAddModal);
+
+document.getElementById('btnCancel').addEventListener('click', hideModal);
+document.getElementById('btnSave').addEventListener('click', saveFromModal);
+
+document.getElementById('btnDeleteInModal').addEventListener('click', () => {
+  if (editingId) showDeleteConfirm(editingId);
+});
+
+document.getElementById('btnConfirmNo').addEventListener('click', hideDeleteConfirm);
+document.getElementById('btnConfirmYes').addEventListener('click', confirmDelete);
+
+// 点击模态框背景关闭
+document.getElementById('modalOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) hideModal();
+});
+document.getElementById('confirmOverlay').addEventListener('click', (e) => {
+  if (e.target === e.currentTarget) hideDeleteConfirm();
+});
+
+// 标签选择器
+document.querySelectorAll('#tagPicker .tag-option').forEach(opt => {
+  opt.addEventListener('click', () => selectTagOption(opt.dataset.tag));
+});
+
+/* ========== 导出 / 导入 ========== */
+function showToast(msg, isError) {
+  const existing = document.querySelector('.toast');
+  if (existing) existing.remove();
+  const toast = document.createElement('div');
+  toast.className = 'toast' + (isError ? ' error' : '');
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2200);
+}
+
+function exportData() {
+  const data = loadData();
+  const keys = Object.keys(data);
+  if (keys.length === 0) {
+    showToast('没有可导出的日程数据', true);
+    return;
+  }
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  const now = new Date();
+  const stamp = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+  a.download = `日程备份_${stamp}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast(`已导出 ${keys.length} 天的日程数据`);
+}
+
+document.getElementById('exportBtn').addEventListener('click', exportData);
+
+document.getElementById('importBtn').addEventListener('click', () => {
+  document.getElementById('importFileInput').click();
+});
+
+document.getElementById('importFileInput').addEventListener('change', (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    try {
+      const imported = JSON.parse(ev.target.result);
+      if (typeof imported !== 'object' || Array.isArray(imported) || imported === null) {
+        throw new Error('格式错误');
+      }
+      // 验证每条数据是否为 { "YYYY-MM-DD": [...] } 结构
+      for (const [key, arr] of Object.entries(imported)) {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(key) || !Array.isArray(arr)) {
+          throw new Error(`日期键 "${key}" 格式不正确`);
+        }
+        for (const item of arr) {
+          if (!item.id || !item.title || !item.startTime || !item.endTime) {
+            throw new Error(`日期 "${key}" 中的日程缺少必要字段`);
+          }
+        }
+      }
+      // 合并：导入数据覆盖同日期，保留原有其他日期
+      const existing = loadData();
+      let mergedCount = 0;
+      for (const [key, arr] of Object.entries(imported)) {
+        if (existing[key]) {
+          // 合并当天：以 id 去重，导入的优先
+          const existingIds = new Set(existing[key].map(s => s.id));
+          const merged = existing[key].slice();
+          for (const item of arr) {
+            const idx = merged.findIndex(s => s.id === item.id);
+            if (idx !== -1) merged[idx] = item;
+            else merged.push(item);
+          }
+          existing[key] = merged;
+        } else {
+          existing[key] = arr;
+        }
+        mergedCount++;
+      }
+      saveData(existing);
+      renderAll();
+      showToast(`成功导入 ${mergedCount} 天的日程数据`);
+    } catch (err) {
+      showToast('导入失败：' + err.message, true);
+    }
+  };
+  reader.readAsText(file);
+  // 清除 input 以允许重复选择同一文件
+  e.target.value = '';
+});
+
+/* ========== 清除全部 ========== */
+let clearAllPending = false;
+
+document.getElementById('clearAllBtn').addEventListener('click', () => {
+  const data = loadData();
+  const totalDays = Object.keys(data).length;
+  if (totalDays === 0) {
+    showToast('没有日程数据需要清除', true);
+    return;
+  }
+  // 复用确认对话框
+  const overlay = document.getElementById('confirmOverlay');
+  overlay.querySelector('p').textContent =
+    `确定要清除全部 ${totalDays} 天的所有日程吗？此操作不可恢复！`;
+  overlay.style.display = 'flex';
+  clearAllPending = true;
+});
+
+// 复用确认弹窗处理清除全部
+document.getElementById('btnConfirmYes').addEventListener('click', () => {
+  if (clearAllPending) {
+    localStorage.removeItem(STORAGE_KEY);
+    clearAllPending = false;
+    document.getElementById('confirmOverlay').style.display = 'none';
+    // 恢复对话框文案
+    document.getElementById('confirmOverlay').querySelector('p').textContent =
+      '确定要删除这条日程吗？';
+    selectedDateKey = todayKey;
+    currentYear = today.getFullYear();
+    currentMonth = today.getMonth() + 1;
+    renderAll();
+    showToast('已清除全部日程数据');
+  }
+});
+
+document.getElementById('btnConfirmNo').addEventListener('click', () => {
+  if (clearAllPending) {
+    clearAllPending = false;
+    document.getElementById('confirmOverlay').style.display = 'none';
+    document.getElementById('confirmOverlay').querySelector('p').textContent =
+      '确定要删除这条日程吗？';
+  }
+});
+
+/* ========== 启动 ========== */
+init();
+</script>
+</body>
+</html>
